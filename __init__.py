@@ -1,2 +1,1 @@
-"""RoboNav-Sim: a 2D autonomous mobile robot navigation simulator."""
-__version__ = "1.0.0"
+"""Robot electronics simulation: RC filter, op-amp stage, DC motor + PID."""

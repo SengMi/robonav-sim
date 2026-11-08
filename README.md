@@ -1,51 +1,39 @@
-# RoboNav-Sim: 2D Autonomous Mobile Robot Navigation Simulator
+# Robot Electronics Simulation (Python)
 
-A pure-Python (NumPy + Matplotlib) simulator that plans collision-free paths for a
-differential-drive robot and drives it along them in a closed control loop.
+Simulations of the analog and electromechanical building blocks of a small mobile robot:
+sensor conditioning (RC filter + op-amp) and DC motor speed control (PID).
+Built with NumPy and Matplotlib only.
 
-## Features
-- **Occupancy-grid environment** with random map generation and obstacle inflation
-  (configuration-space expansion for a circular robot).
-- **Global planners**: Dijkstra, A* (octile heuristic, no diagonal corner-cutting), and RRT.
-- **Path post-processing**: line-of-sight shortcut smoothing and path densification.
-- **Robot model**: differential-drive kinematics with velocity limits.
-- **Controller**: pure-pursuit path tracking with speed scaling for turns and goal approach.
-- **Safety check**: collisions are tested on the *true* map, not the inflated planning map.
-- **Benchmark**: Monte-Carlo comparison over random maps (success rate, length, runtime,
-  nodes expanded) exported to CSV and plots.
-- **Unit tests** covering optimality, unreachable goals, collision-free paths, and the controller.
+## Modules
+| File | What it models | Key equation |
+|------|----------------|--------------|
+| `rc_filter.py` | First-order RC low-pass, frequency and time response | f_c = 1 / (2πRC) |
+| `opamp.py` | Non-inverting / inverting amplifier, finite GBW, supply clipping | G = 1 + Rf/Rg, f_-3dB = GBW / G |
+| `dc_motor.py` | Permanent-magnet DC motor, RK4 integration | L di/dt = V - Ri - Ke·ω;  J dω/dt = Kt·i - bω - T_load |
+| `pid.py` | PID with output saturation and anti-windup | u = Kp·e + Ki·∫e + Kd·de/dt |
+| `experiments.py` | Generates all plots and numbers below | |
 
-## Quick start
+## Results
+| Experiment | Result |
+|------------|--------|
+| RC filter, R = 10 kΩ, C = 100 nF | f_c = 159.2 Hz (-3 dB, -45° phase) |
+| Op-amp stage, Rf = 9 kΩ, Rg = 1 kΩ, GBW = 1 MHz | Gain = 10, bandwidth = 100 kHz |
+| Sensor chain (2 Hz signal + 50 Hz hum + white noise) | RMS error 46.4 mV → 28.0 mV after RC filter |
+| Motor, 12 V step | Simulated 238.0 rad/s vs analytic 238.1 rad/s; τ_mech = 79 ms; start-up current 5.5 A |
+| PID speed control (150 rad/s) | 0% overshoot, 2% settling in 0.26 s, load step rejected (back to 150 rad/s) |
+
+Plots are in `results/`: `rc_bode.png`, `opamp_gain.png`, `sensor_chain.png`,
+`motor_step.png`, `pid_speed.png`.
+
+## Run
 ```bash
 pip install -r requirements.txt
-python main.py demo --seed 7 --planner astar     # plans.png + robot.gif in results/
-python main.py benchmark --maps 30               # benchmark.csv + benchmark.png
-python -m unittest discover -s tests -v          # run tests
+python main.py
+python -m unittest discover -s tests -v
 ```
+12 unit tests check the simulation against analytic results (cutoff frequency, -3 dB point,
+63% rise at τ, motor steady state, back-EMF balance, saturation, load rejection).
 
-## Sample results (30 random 60x40 maps)
-| Planner  | Mean length | Smoothed | Runtime (ms) | Nodes expanded |
-|----------|-------------|----------|--------------|----------------|
-| A*       | 69.4        | 66.2     | 3.8          | 370            |
-| Dijkstra | 69.4        | 66.4     | 10.6         | 1117           |
-| RRT      | 82.3        | 69.2     | 100.0        | 1459           |
-
-Success rate is below 100% because some random maps have no valid path after inflation.
-A* returns the same optimal cost as Dijkstra while expanding about 3x fewer nodes.
-RRT is not optimal, but smoothing recovers most of the length gap.
-
-## Project layout
-```
-robonav/environment.py   grid map, inflation, random maps
-robonav/planners.py      Dijkstra, A*, RRT
-robonav/smoothing.py     shortcut smoothing, densify
-robonav/robot.py         kinematics + pure pursuit
-robonav/simulation.py    closed-loop simulation
-robonav/benchmark.py     Monte-Carlo evaluation
-robonav/visualize.py     plots and GIF
-main.py                  CLI
-tests/                   unit tests
-```
-
-## Future work
-RRT*, dynamic obstacles with D* Lite replanning, LiDAR simulation, ROS 2 bridge.
+## Notes and limitations
+Parameters are typical small-motor values, not measured from real hardware. The model
+ignores sensor non-linearity, op-amp offsets, PWM switching, and temperature effects.
